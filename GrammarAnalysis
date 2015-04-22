@@ -1,0 +1,66 @@
+#include <iostream>
+#include <fstream>
+#include <iomanip>
+using namespace std;
+
+typedef struct {
+	char cLeft;
+	char cRight[100];
+}grammarElement;//产生式 Production
+grammarElement grammarOldSet[200];
+
+char terSymbol[200];			//终结符号 Terminator
+char non_ter[200];				//非终结符号 Nonterminator
+//char allSymbol[400];//所有符号
+char firstSET[100][100];		//各产生式右部的FIRST集 First Set
+char followSET[100][100];		//各产生式左部的FOLLOW集 Follow Set
+int M[200][200];				//分析表 Analysis Table
+
+
+void Analysis_Table_Build() {
+	FILE *A;
+	char ch,cc;
+	int i = 0, Pnum;
+	if ((A = fopen("input.dat","r+")) == NULL)
+		cout<<"input file cannot be opened"<<endl;
+	ch = fgetc(A);
+	while (ch != EOF) { // fetch all Production from a file to grammarElement
+		grammarOldSet[i].cLeft = ch;
+		ch = fgetc(A);
+		if (ch == '-')
+			ch = fgetc(A);
+		if (ch == '>')
+			ch = fgetc(A);
+		int j = 0;
+		while (ch != '\n' && ch != EOF) {
+			grammarOldSet[i].cRight[j] = ch;
+			ch = fgetc(A);
+			j++;
+		}
+		ch = fgetc(A);
+		i++;
+	}
+	Pnum = i;			//Pnum is the number of Produntion
+	/*for (int k = 0; k < i; k++) {
+		cout<<grammarOldSet[k].cLeft<<"->"<<grammarOldSet[k].cRight<<endl;
+	}*/
+	for (int k = 0; k < Pnum; k ++) {
+		terSymbol[k] = grammarOldSet[k].cLeft;
+	}
+	for (int k = 0; k < Pnum; k++) {
+		int j = 0, l = 0;
+		cc = grammarOldSet[k].cRight[j++];
+		while (l < Pnum) {
+			if (cc == terSymbol[l]) {
+				l = 0;
+				break;
+			}
+			l++;
+		}
+	}
+}
+
+int main(int argc, char* argv[]) {
+	Analysis_Table_Build();
+	return 0;
+}
