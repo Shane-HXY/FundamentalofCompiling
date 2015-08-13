@@ -1,0 +1,564 @@
+
+#include <iostream>
+#include <fstream>
+#include <iomanip>
+using namespace std;
+
+typedef struct {
+	char cLeft;
+	char cRight[100];
+}grammarElement;// Production
+grammarElement grammarOldSet[200];
+
+char terSymbol[200];			// Terminator
+char non_ter[200];				// Nonterminator
+//char allSymbol[400];// all symbol∑
+char firstSET[100][100];		// First Set
+char followSET[100][100];		// Follow Set
+int M[200][200];				// Analysis Table
+int Pnum, Nnum, Tnum;
+char terSymbolnew[200];
+
+typedef struct {
+	char *base;
+	char *top;
+	int stacksize;
+}gosstack;
+
+int initstack(gosstack &s) {
+	s.base = (char *)malloc(100*sizeof(char));
+	if (!s.base) exit(-1);
+	s.top = s.base;
+	s.stacksize = 100;
+	return 1;
+}
+
+int gettop(gosstack s, char &e) {
+	if (s.top == s.base) return -1;
+	e = *(s.top - 1);
+	return 1;
+}
+
+int push(gosstack &s, char e) {
+	if (s.top - s.base >= s.stacksize) {
+		s.base = (char *)realloc(s.base,(s.stacksize + 10) * sizeof(char));
+		if (!s.base) exit(-1);
+		s.top = s.base + s.stacksize;
+		s.stacksize += 10;
+	}
+	*s.top++ = e;
+	return 1;
+}
+
+int pop(gosstack &s, char &e) {
+	if (s.top == s.base) return (-1);
+	e = * --s.top;
+	return 1;
+}
+
+int destroy(gosstack &s) {
+	free(s.base);
+	return 1;
+}
+
+void Pretreat() {
+	int findS(char a, const char* b, int t);
+	FILE *A;
+	char ch;
+	int i = 0;
+	// Pnum is the number of Production 
+	// Tnum is the number of Terminal Symbol
+	// Nnum is the number of Nonterminal Symbol
+	
+	if ((A = fopen("input.txt","r+")) == NULL)
+		cout<<"input file cannot be opened"<<endl;
+	ch = fgetc(A);
+	
+	while (ch != EOF) { // fetch all Production from a file to grammarElement
+		int j = 0;
+		
+		grammarOldSet[i].cLeft = ch;
+		ch = fgetc(A);
+		if (ch == '-')
+			ch = fgetc(A);
+		if (ch == '>')
+			ch = fgetc(A);
+		j = 0;
+		while (ch != '\n' && ch != EOF) {
+			grammarOldSet[i].cRight[j] = ch;
+			ch = fgetc(A);
+			j++;
+		}
+		ch = fgetc(A);
+		i++;
+	}
+	Pnum = i;	// Pnum gotten
+	
+	for (int k = 0; k < i; k++) {
+		cout<<grammarOldSet[k].cLeft<<"->"<<grammarOldSet[k].cRight<<endl;
+	}
+	
+	i = 0;
+	int k = 0;
+	while (i < Pnum && (grammarOldSet[k].cLeft)) {
+    	while (grammarOldSet[k].cLeft == grammarOldSet[k+1].cLeft && (grammarOldSet[k].cLeft))
+    		k++;
+    	non_ter[i++] = grammarOldSet[k].cLeft;
+    	k++;
+	}
+	Nnum = i;	// Nnum gotten
+	
+	i = 0;
+	for (int k = 0; k < Pnum; k++) { // input terminal symbol
+		int j = 0;
+		while (grammarOldSet[k].cRight[j]) {
+			if ((findS(grammarOldSet[k].cRight[j], non_ter, Nnum) == -1) && (findS(grammarOldSet[k].cRight[j], terSymbol, 200) == -1)) {
+				terSymbol[i++] = grammarOldSet[k].cRight[j];
+				j++;
+			}
+
+			else j++;
+		}
+
+	}
+	Tnum = i;
+	/*
+	for (int x = 0; x < i; x++)
+		terSymbol[x] = terSymbol[x+1];
+	terSymbol[i-1] = '\0'; 
+	Tnum = --i; // Tnum gotten
+	*/
+	cout<<"terminal Symbol:"<<endl;
+	for (int k = 0; k < Tnum; k++)
+		cout<<terSymbol[k]<<" ";
+	cout<<endl;
+	cout<<"non-terminal Symbol:"<<endl;
+	for (int k = 0; k < Nnum; k++)
+		cout<<non_ter[k]<<" ";
+	cout<<endl;
+	cout<<"the number of Production:"<<Pnum<<endl;
+	cout<<"the number of terminal symbol:"<<Tnum<<endl;
+	cout<<"the number of non-terminal symbol:"<<Nnum<<endl;
+	//cout<<terSymbol[1];
+}
+
+int findS(char a, const char* b, int t) {
+	int flag = 0, i;
+	for (i = 0; i < t; i++) {
+		if (a == b[i]) {
+			flag = 1;
+			break;
+		}
+	}
+	if (flag == 1) return i;
+	else return -1;
+}
+
+int hasnotck(int *check, int n){
+    int count = 0;
+    for (int i = 0; i < n; i++)    
+        if (check[i]) {
+            count++;
+            //cout<<"problem";
+        }
+    if (count < n) return 1;
+    else return 0;
+}
+
+
+
+void FindFirstSet() {
+    int hasnotck(int *check, int n);
+    char ch, cc;
+    int check[Nnum]; // check[] ==0 firstSet not yet found | check[] == 1 firstSet found | check[] == 2 firstSet is & 
+    int k = 0;
+    int Pos[Nnum];
+    
+
+    for (int i = 0; i < Nnum; i++)
+        Pos[i] = 0;
+    for (int i = 0; i < Nnum; i++)
+        check[i] = 0;
+
+    while (hasnotck(check, Nnum)) {
+        for (int i = 0; i < Pnum; i++) {
+            ch = grammarOldSet[i].cLeft;
+            cc = grammarOldSet[i].cRight[0];
+
+            if (findS(cc, terSymbol, Tnum) >= 0) {
+                int n = findS(ch, non_ter, Nnum);
+                firstSET[n][Pos[n]++] = cc;
+                if (cc == '&' || check[n] == 2) check[n] = 2;
+                else check[n] = 1;
+                //cout<<check[n]<<n<<endl;
+            }
+            else if (findS(cc, non_ter, Nnum) >= 0) {
+                int cn = findS(cc, non_ter, Nnum);
+                if (check[cn] == 1) {
+                    int n = findS(ch, non_ter, Nnum);
+                    if (check[n] == 0) {
+                    	//cout<<check[n]<<n;
+                        int x = 0;
+                        while (x < Pos[cn])
+                            firstSET[n][Pos[n]++] = firstSET[cn][x++];
+                        check[n] = 1;
+                        //cout<<check[n]<<n<<endl;
+                    }
+                }
+                
+                else if (check[cn] == 2) {
+                	int k = 0;
+                	int n = findS(ch, non_ter, Nnum);
+                    if (check[n] == 0) {
+                    	
+                    	int pcn = 0;
+                    	while (pcn <= Pos[cn]) {
+                    		if (firstSET[cn][pcn] != '&') {
+                    			firstSET[n][Pos[n]++] = firstSET[cn][pcn];
+                    			pcn++;
+                    		}
+                    		else pcn++;
+                    	}
+
+                        cc = grammarOldSet[i].cRight[++k];
+                        cn = findS(cc, non_ter, Nnum);
+                        while (check[cn] == 2) {
+                        	pcn = 0;
+                        	while (pcn <= Pos[cn]) {
+                        		if (firstSET[cn][pcn] != '&') {
+                        			firstSET[n][Pos[n]++] = firstSET[cn][pcn];
+                        			pcn++;
+                        		}
+                        		else pcn++;
+                        	}
+                        	cc = grammarOldSet[i].cRight[++k];
+                        	cn = findS(cc, non_ter, Nnum);
+                        	if (!cc) {
+                        		firstSET[n][Pos[n]++] = '&';
+                        		check[n] = 2;
+                        		break;
+                        	}
+                        }
+                        if (check[n] != 2) check[n] = 1;
+                    }
+                }
+				
+            }
+        }
+    }
+    for (int i = 0; i < Nnum; i++) {
+    	int j = 0;
+    	while (firstSET[i][j]) {
+    		for (int k = 0; k < j; k++)
+    			if (firstSET[i][k] == firstSET[i][j])
+    				firstSET[i][j] = '\0';
+    		j++;
+    	}
+    }
+
+    for (int i = 0; i < Tnum; i++) { // in terminal symbol, the first set only includes TS itself
+		firstSET[i+Nnum][0] = terSymbol[i];
+	}
+
+	//for (int i = 0; i < Nnum; i++)
+	//	cout<<check[i];
+}
+
+void printfirst() {
+	for (int i = 0; i < Tnum+Nnum; i++) {
+		int j = 0;
+		while (firstSET[i][j]) {
+			cout<<"firstSET["<<i<<"]["<<j<<"] :"<<firstSET[i][j]<<" ";
+			j++;
+			//if (i == 2 || i == 0) cout<<"shoot";
+		}
+		cout<<endl;
+	}
+
+}
+
+void FindFollowSet() {
+	
+	int Pos[Nnum];
+	int fol[Nnum][Nnum+Tnum];
+	int empty[Nnum];
+
+	
+	for (int i = 0; i < Nnum; i++)
+		Pos[i] = 0;
+	for (int i = 0; i <Nnum; i++)
+		for (int j = 0; j < Nnum+Tnum; j++)
+			fol[i][j] = 0;
+
+	for (int i = 0; i < Nnum; i++)
+		empty[i] = 0;
+	int q = 0, w = 0;
+	while (firstSET[q][w]) {
+		if (firstSET[q][w] == '&') {
+			empty[q] = 1;
+			
+		}
+		w++;
+		if (!firstSET[q][w]) {
+			q++;
+			w = 0;
+		}
+	}
+
+	followSET[0][Pos[0]++] = '#';
+	//for (int i = 0; i < Nnum; i++)
+	//	cout<<empty[i];
+	
+	for (int i = 0; i < Pnum; i++) {
+		int j = 0;
+		char ch;
+		int hn;
+		char cl = grammarOldSet[i].cLeft;
+		int ln = findS(cl, non_ter, Nnum);
+		int flag = 1;
+		while (grammarOldSet[i].cRight[j]) {
+			ch = grammarOldSet[i].cRight[j];
+			hn = findS(ch, non_ter, Nnum);
+			
+			if (hn >= 0) { //non-terminal symbol
+				int k = 1;
+				char cc;
+				int cn;
+				//cout<<grammarOldSet[0].cRight[2];
+				while (grammarOldSet[i].cRight[j+k]) {
+					cc = grammarOldSet[i].cRight[j+k];
+					cn = findS(cc, non_ter, Nnum);
+					//cout<<ch<<i<<j<<":";
+					if (cn < 0) { // terminal symbol
+						//cout<<"1";
+						cn = findS(cc, terSymbol, Tnum) + Nnum;
+						if (fol[hn][cn] == 0 || fol[hn][cn] == 1) fol[hn][cn] = 1; else fol[hn][cn] = fol[hn][cn] +1;
+						flag = 1;
+						k++;
+						break;
+					}
+					else { // non-terminal symbol
+						
+						if (empty[cn] == 1) {//cout<<"2";
+							if (fol[hn][cn] == 0 || fol[hn][cn] == 1) fol[hn][cn] = 1; else fol[hn][cn] = fol[hn][cn] +1;
+							flag = 0;
+							k++;
+						}
+						else {//cout<<"3";
+							if (fol[hn][cn] == 0 || fol[hn][cn] == 1) fol[hn][cn] = 1; else fol[hn][cn] = fol[hn][cn] +1;
+							flag = 1;
+							break;
+						}
+					}
+					
+				}
+				
+				if (flag == 0 || k == 1) {
+					//cout<<"XX"<<ch<<cl<<"XX";
+					if (fol[hn][ln] == 0 || fol[hn][ln] == 2) fol[hn][ln] = 2; else fol[hn][ln] = fol[hn][ln] +2;
+				}
+			}
+			j++;
+		}
+		if (hn >= 0) {
+			//cout<<i<<":";
+			if (fol[hn][ln] == 0 || fol[hn][ln] == 2) fol[hn][ln] = 2; else fol[hn][ln] = fol[hn][ln] + 2;
+		}
+		
+	}
+	
+	for (int i = 0; i < Nnum; i++)
+		for (int j = 0; j < Nnum+Tnum; j++) {
+			if (fol[i][j] != 0) {
+				if (fol[i][j] == 1 || fol[i][j] == 3) {
+					int k = 0;
+					while (firstSET[j][k]) {
+						if (firstSET[j][k] != '&')
+							followSET[i][Pos[i]++] = firstSET[j][k];
+						k++;
+					}
+				}
+				else if (fol[i][j] == 2 || fol[i][j] == 3) {
+					int k = 0;
+					if (i != j) {
+						while (followSET[j][k]) {
+							followSET[i][Pos[i]++] = followSET[j][k];
+							k++;
+						}
+					}
+				}
+			}
+		}
+	/*
+	for (int i = 0; i < Nnum; i++) {
+		cout<<endl;
+		cout<<i<<":";
+		for (int j = 0; j < Nnum+Tnum; j++)
+			cout<<fol[i][j];
+		
+	}
+	cout<<endl;*/
+}
+
+void printfollow() {
+	for (int i = 0; i < Nnum; i++) {
+		int j = 0;
+		while (followSET[i][j]) {
+			cout<<"followSET["<<i<<"]["<<j<<"] :"<<followSET[i][j]<<" ";
+			j++;
+			//if (i == 2 || i == 0) cout<<"shoot";
+		}
+		cout<<endl;
+	}
+	//
+}
+
+void forecast_analysis_table() {
+	int empty[Nnum];
+	for (int i = 0; i < Nnum; i++)
+		empty[i] = 0;
+	for (int i = 0; i < 200; i++)
+		for (int j = 0; j < 200; j++)
+			M[i][j] = -1;
+	for (int i = 0; i <Tnum; i++)
+		if (terSymbol[i] == '&')
+			terSymbolnew[i] = '#';
+		else terSymbolnew[i] = terSymbol[i];
+
+	int q = 0, w = 0;
+	while (firstSET[q][w]) {
+		if (firstSET[q][w] == '&') {
+			empty[q] = 1;
+			
+		}
+		w++;
+		if (!firstSET[q][w]) {
+			q++;
+			w = 0;
+		}
+	}
+	for (int i = 0; i < Pnum; i++) {
+		char cl = grammarOldSet[i].cLeft;
+		int ln = findS(cl, non_ter, Nnum);
+		char ch = grammarOldSet[i].cRight[0];
+		int hn = findS(ch, non_ter, Nnum);
+		if (hn < 0) {
+			hn = findS(ch, terSymbol, Tnum);
+			if (terSymbol[hn] == '&') {
+				int k = 0;
+				while (followSET[ln][k]) {
+					char cc = followSET[ln][k];
+					int nc = findS(cc, terSymbol, Tnum);
+					M[ln][nc] = i;
+					k++;
+				}
+			}
+			M[ln][hn] = i;
+		}
+		else {
+			int k = 0;
+			while (firstSET[hn][k]) {
+				char cc = firstSET[hn][k];
+				int nc = findS(cc, terSymbol, Tnum);
+				M[ln][nc] = i;
+				k++;
+			}
+		}/*
+		else if (empty[hn] == 1) {
+			int k = 0;
+			
+			while (followSET[ln][k]) {
+				char cc = followSET[ln][k];
+				int nc = findS(cc, terSymbol, Tnum);
+				M[ln][nc] = i;
+				k++;
+			}
+		}*/
+	}
+}
+
+void print_fat() {
+	for (int i = 0; i < Tnum; i++) {
+		cout<<"         "<<terSymbolnew[i];
+	}
+	cout<<endl;
+	for (int i = 0; i < Nnum; i++) {
+		cout<<non_ter[i]<<"   ";
+		int k;
+		for (int j = 0; j < Tnum; j++) {
+			k = M[i][j];
+			if (k >= 0)
+				cout<<grammarOldSet[k].cLeft<<"->"<<grammarOldSet[k].cRight<<"      ";
+			else
+				cout<<"          ";
+		}
+		cout<<endl;
+	}
+}
+
+void grandmaster() {
+	char in[100];
+	cin>>in;
+	gosstack ss;
+	int pos = 0;
+	char a = in[pos], X;
+	int flag = 1;
+	initstack(ss);
+	push(ss, '#');
+	push(ss, 'E');
+	while (flag) {
+		pop(ss, X);
+		if (findS(X, terSymbol, Tnum) >= 0) {
+			if (X == a)
+				a = in[++pos];
+			else {
+				cout<<"error!1"<<endl;
+				return;
+				break;
+			}
+		}
+		else if (X == '#') {
+			if (X == a) flag = 0;
+			else {
+				cout<<"error!2"<<endl;
+				return;
+				break;
+			}
+		}
+		else {
+			int an = findS(a, terSymbol, Tnum);
+			int Xn = findS(X, non_ter, Nnum);
+			int mm = M[Xn][an];
+			if (mm >= 0 && grammarOldSet[mm].cRight[0] != '&') {
+				int k = 0;
+				char gc[20];
+				while (grammarOldSet[mm].cRight[k]) {
+					gc[k] = grammarOldSet[mm].cRight[k];
+					k++;
+				}
+				for (int l = 0; l < k; l++) {
+					push(ss, gc[k - l - 1]);
+				}
+			}
+			else if (grammarOldSet[mm].cRight[0] == '&');
+			else {
+				cout<<"error!3"<<endl;
+				return;
+				break;
+			}
+		}
+	}
+	cout<<"success!"<<endl;
+}
+
+int main(int argc, char* argv[]) {
+	Pretreat();
+	FindFirstSet();
+	printfirst();
+	FindFollowSet();
+	printfollow();
+	forecast_analysis_table();
+	print_fat();
+	grandmaster();
+	return 0;
+}
